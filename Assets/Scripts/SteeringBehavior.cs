@@ -11,12 +11,27 @@ public class SteeringBehavior : MonoBehaviour
     /// </summary>
     public Vector2 m_WanderTarget;
     float m_WanderRadius = 1f;
-    float m_WanderDistance = 2;
+    float m_WanderDistance = 5;
     float m_WanderJitter = 0.1f;
     float timeForAvoid = 1f;
     Vector2 m_SteeringForce;
     List<Vector2> m_Path;
-
+    /// <summary>
+    /// 躲避点
+    /// </summary>
+    private Vector2 hidePos;
+    /// <summary>
+    /// 是否在躲避中
+    /// </summary>
+    private bool hide = false;
+    /// <summary>
+    /// 逃离对象
+    /// </summary>
+    private Vehicle evadetarget = null;
+    /// <summary>
+    /// 开始进行逃跑/躲避的时刻
+    /// </summary>
+    private float hideAndEvadeTime;
 
     private void Start()
     {
@@ -24,33 +39,36 @@ public class SteeringBehavior : MonoBehaviour
     }
     public Vector2 Calculate()
     {
-        //if (m_vehicle.m_ID == 0) 
-        //{
-        //    return OffsetPursuit(VehicleManager.GetVehicleFromID(1), new Vector2(-1, -1));
-        //    //sight(VehicleManager.GetVehicleFromID(1));
-        //}
-        //return new Vector2(0, 0);
         float m_ValueOfWallAvoidance = 5;
         float m_ValueOfSeparation = 1;
         m_SteeringForce = new Vector2(0, 0);
         Vector2 force;
         force = WallAvoidance() * m_ValueOfWallAvoidance;
         if (!AccumulateForce(ref m_SteeringForce, force)) return m_SteeringForce;
-        m_vehicle.TagNeighbors(m_vehicle, 5);
-        force = LineAlignment(m_vehicle.neighborTag) * m_ValueOfSeparation;
+        m_vehicle.FindNeighbors(m_vehicle, 5);
+        force = LineAlignment(m_vehicle.neighbor) * m_ValueOfSeparation;
         if (!AccumulateForce(ref m_SteeringForce, force)) return m_SteeringForce;
         return m_SteeringForce;
+        //return Arrive(m_vehicle.obj.transform.position, Deceleration.fast);
+        //m_vehicle.FindNeighbors(m_vehicle, 5);
+        //return LineAlignment(m_vehicle.neighbor);
+
     }
     public bool AccumulateForce(ref Vector2 runningTot, Vector2 forceToAdd)
     {
+        // 目前累计操控力的大小
         float magnitudeSoFar = runningTot.magnitude;
+        // 剩余可用力的大小
         float magnitudeRemaining = m_vehicle.m_MaxForce - magnitudeSoFar;
-        if (magnitudeRemaining < 0.0) return false;
+        //如果没有剩余力可用，返回false
+        if (magnitudeRemaining < 0.1f) return false;
+        // 如果剩余力比待加力小，对待加力进行等比例缩小
         float magnitudeToAdd = forceToAdd.magnitude;
         if (magnitudeToAdd < magnitudeRemaining)
         {
             runningTot += forceToAdd;
         }
+        // 否则直接加上待加力
         else
         {
             runningTot += (forceToAdd.normalized * magnitudeRemaining);
@@ -108,7 +126,7 @@ public class SteeringBehavior : MonoBehaviour
         float dist = ToTarget.magnitude;
         if (dist > 0.1) 
         {
-            float decelerationTweaker = 0.3f;
+            float decelerationTweaker = 0.5f;
             float speed = Mathf.Min(dist / ((int)deceleration * decelerationTweaker), m_vehicle.m_MaxSpeed);//TODO：调参
             Vector2 desiredVelocity = ToTarget * speed / dist;
             return (desiredVelocity - m_vehicle.velocity).normalized * m_vehicle.m_MaxForce;
@@ -164,19 +182,11 @@ public class SteeringBehavior : MonoBehaviour
     /// <returns></returns>
     public Vector2 Wander()
     {
-        //timer++;
-        //if (timer % 20 != 0) 
-        //{
-        //    return Seek(FromLocalToWorld(m_vehicle.wanderTarget.transform.position, m_vehicle.posotion, m_vehicle.head, m_vehicle.left));
-        //}
-        //timer = 0;
         m_WanderTarget += new Vector2(Random.Range(-1f, 1f) * m_WanderJitter, Random.Range(-1f, 1f) * m_WanderJitter);
         m_WanderTarget.Normalize();
-        Debug.Log("local_1:(" + m_WanderTarget.x + "," + m_WanderTarget.y + ")");
         m_WanderTarget *= m_WanderRadius;
-        Debug.Log("local_2:(" + m_WanderTarget.x + "," + m_WanderTarget.y + ")");
         m_vehicle.wanderTarget.transform.SetPositionAndRotation(FromLocalToWorld(m_WanderTarget + new Vector2(0, m_WanderDistance), m_vehicle.position, m_vehicle.head, m_vehicle.right), Quaternion.identity);
-        return Seek(FromLocalToWorld(m_vehicle.wanderTarget.transform.position, m_vehicle.position, m_vehicle.head, m_vehicle.right));
+        return Seek(m_vehicle.wanderTarget.transform.position);
     }
     /// <summary>
     /// 避开障碍
@@ -185,14 +195,18 @@ public class SteeringBehavior : MonoBehaviour
     /// <returns></returns>
     public Vector2 ObstacleAvoidance(Vehicle pAgent)
     {
+        // move是发出摄线的位置（相对于pAgent的x坐标）
         float move = Random.Range(-0.5f, 0.5f);
+        // 发出射线的长度
         float length = timeForAvoid * (1 + pAgent.m_MaxSpeed);
+        // 发出射线的起点坐标（vehicle的相对坐标系）
         Vector2 localOrigin = new Vector2();
         localOrigin.x = pAgent.size.x * move;
         localOrigin.y = -pAgent.size.y * 0.5f;
+        RaycastHit2D[] raycastHit2Ds = Physics2D.RaycastAll(FromLocalToWorld(localOrigin, pAgent.position, pAgent.head, pAgent.right), pAgent.head, length);
+        // 找到距离最近的障碍物
         float minDistance = 100f;
         int min_temp = -1;
-        RaycastHit2D[] raycastHit2Ds = Physics2D.RaycastAll(FromLocalToWorld(localOrigin, pAgent.position, pAgent.head, pAgent.right), pAgent.head, length);
         for (int i = 0; i < raycastHit2Ds.Length; i++)
         {
             if (raycastHit2Ds[i].collider.tag == "Obstacle" && Vector2.Distance(raycastHit2Ds[i].collider.transform.position, pAgent.position) < minDistance) 
@@ -202,18 +216,24 @@ public class SteeringBehavior : MonoBehaviour
                 min_temp = i;
             }
         }
+        // 没有障碍物
         if (min_temp==-1)
         {
             return new Vector2(0, 0);
         }
+        // 计算distance_len,distance_high
         Vector2 toObstacle = (Vector2)raycastHit2Ds[min_temp].collider.transform.position - pAgent.position;
         float distance_len = Mathf.Abs(pAgent.head.x * toObstacle.x + pAgent.head.y * toObstacle.y);
         float distance_high = Mathf.Sqrt(minDistance * minDistance - distance_len * distance_len);
-        float multiplier = (1f + (length - distance_len) / length) / 2;//[0,1]
+        // 计算施加力
+        float multiplier = (1f + (length - distance_len) / length);//1～2，和distance_len成反比
         Vector2 steeringForce = new Vector2();//局部坐标
+        //局部坐标标准化y向量
         float y_norm = (raycastHit2Ds[min_temp].collider.bounds.extents.x + pAgent.size.x / 2 - distance_high) / (raycastHit2Ds[min_temp].collider.bounds.extents.x + pAgent.size.x / 2);//[0,1]
+        // 侧向力
         steeringForce.y = -y_norm * multiplier * pAgent.m_MaxForce;//[0,maxForce]
-        float breakingWeight = 0.2f;
+        //制动力
+        float breakingWeight = 0.2f;//制动力参数
         steeringForce.x = (length - distance_len) / length * breakingWeight * m_vehicle.m_MaxForce;
         return FromLocalToWorld(steeringForce, new Vector2(0, 0), m_vehicle.head, m_vehicle.right);
     }
@@ -224,7 +244,7 @@ public class SteeringBehavior : MonoBehaviour
     public Vector2 WallAvoidance()
     {
         float length = timeForAvoid * (1 + m_vehicle.m_MaxSpeed);
-        float angle = Random.Range(0.8f, 2.4f) + m_vehicle.rotation_z / 180 * 3.14f;
+        float angle = Random.Range(-0.8f, 0.8f) + m_vehicle.rotation_z / 180 * 3.14f;
         RaycastHit2D[] raycastHit2Ds = Physics2D.RaycastAll(FromLocalToWorld(new Vector2(0, 0), m_vehicle.position, m_vehicle.head, m_vehicle.right), new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)), length);
         float minDistance = 100f;
         int min_temp = -1;
@@ -248,13 +268,14 @@ public class SteeringBehavior : MonoBehaviour
         }
         Vector2 toWall = (Vector2)raycastHit2Ds[min_temp].collider.transform.position - m_vehicle.position;
         float temp = Vector2.Dot(toWall, raycastHit2Ds[min_temp].collider.transform.up);
+        float strength = 0.5f;
         if (temp <= 0)   
         {
-            return raycastHit2Ds[min_temp].collider.transform.up * (timeForAvoid - minDistance);
+            return -raycastHit2Ds[min_temp].collider.transform.up * (timeForAvoid - minDistance) * strength;
         }
         else
         {
-            return -raycastHit2Ds[min_temp].collider.transform.up * (timeForAvoid - minDistance);
+            return raycastHit2Ds[min_temp].collider.transform.up * (timeForAvoid - minDistance) * strength;
         }
     }
     /// <summary>
@@ -330,18 +351,41 @@ public class SteeringBehavior : MonoBehaviour
         return (toOb.normalized * distAway) + posOb;
     }
     /// <summary>
+    /// hide的辅助函数
+    /// </summary>
+    private void Hiding()
+    {
+        if (hide && (Time.time - hideAndEvadeTime > 5 || Vector2.Distance(hidePos, m_vehicle.position) < 0.1f))
+        {
+            hide = false;
+            hideAndEvadeTime = 0;
+        }
+        if (evadetarget != null && Time.time - hideAndEvadeTime > 5)
+        {
+            evadetarget = null;
+            hideAndEvadeTime = 0;
+        }
+    }
+    /// <summary>
     /// 隐藏
     /// </summary>
     /// <param name="target"></param>
     /// <returns></returns>
     public Vector2 Hide(Vehicle target)
     {
+        Hiding();
+        if (hide)
+        {
+            return Arrive(hidePos, Deceleration.fast);
+        }
+        if (evadetarget != null) 
+        {
+            return Evade(evadetarget);
+        }
         if (Vector2.Distance(target.position, m_vehicle.position) > m_vehicle.PanicDistance)  
         {
             return new Vector2(0, 0);
         }
-        //TODO:时间因素
-        //确实要加时间因素，因为不加的话，当走出视野区域后就不再动了
         //TODO:如果周围有多个敌人呢？分别调用Hide函数是否会引起抖动？或者不能找到最优解？把target改成数组
         if (!targetInsight(target, m_vehicle)) 
         {
@@ -349,6 +393,7 @@ public class SteeringBehavior : MonoBehaviour
         }
         if (targetInsight(m_vehicle, target))
         {
+            evadetarget = target;
             return Evade(target);
         }
         float radius = 6;
@@ -359,7 +404,7 @@ public class SteeringBehavior : MonoBehaviour
         for (int i = 0; i < obstacles.Length; i++)
         {
             float distance = Vector2.Distance(GetHidingPoisition(obstacles[i].gameObject.transform.position, obstacles[i].bounds.extents.x, target.position), m_vehicle.position);
-            // 不能躲在target视野的障碍物
+            // 不能躲在target视野的障碍物，并且障碍物要比vehicle大
             bool inTargetSight = false;
             for (int j = 0; j < targetSight.Count; j++)
             {
@@ -369,7 +414,8 @@ public class SteeringBehavior : MonoBehaviour
                     break;
                 }
             }
-            if (inTargetSight==true)
+            if (inTargetSight==true) continue;
+            if (obstacles[i].bounds.extents.x * 2 < Mathf.Max(m_vehicle.size.x, m_vehicle.size.x)) 
             {
                 continue;
             }
@@ -381,9 +427,12 @@ public class SteeringBehavior : MonoBehaviour
         }
         if (min_temp == -1) 
         {
-            //HACK:这里的逃避只是个瞬时动作，不能持续（调转之后，不在视线内，返回（0，0）
+            evadetarget = target;
             return Evade(target);
         }
+        hide = true;
+        hideAndEvadeTime = Time.time;
+        hidePos = GetHidingPoisition(obstacles[min_temp].gameObject.transform.position, obstacles[min_temp].bounds.extents.x, target.position);
         return Arrive(GetHidingPoisition(obstacles[min_temp].gameObject.transform.position, obstacles[min_temp].bounds.extents.x, target.position), Deceleration.fast);
         //TODO：在Arrive的时候绕target背后
     }
@@ -430,7 +479,8 @@ public class SteeringBehavior : MonoBehaviour
             if (neighbors[i].gameObject.name != m_vehicle.name) 
             {
                 Vector2 toAgent = m_vehicle.position - (Vector2)neighbors[i].transform.position;
-                SteeringForce += toAgent.normalized / toAgent.magnitude;//HACK:
+                // 力的大小反比于邻居到智能体的距离
+                SteeringForce += toAgent.normalized / toAgent.magnitude;//HACK:是不是邻居越多，力就更可能更大？
             }
         }
         return SteeringForce;

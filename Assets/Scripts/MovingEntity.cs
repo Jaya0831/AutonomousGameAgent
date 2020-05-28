@@ -58,39 +58,6 @@ public class MovingEntity : BaseGameEntity
         }
     }
 
-    //平滑
-    public List<Vector2> heads;
-    public Vector2 smoothHeading;
-    public int smoothtimes = 30;
 
-    private void Start()
-    {
-        smoothHeading = head;
-        for (int i = 0; i < smoothtimes; i++)
-        {
-            heads.Add(head);
-        }
-    }
-
-    /// <summary>
-    /// 平滑处理
-    /// </summary>
-    /// <returns></returns>
-    private Vector2 Smooth()
-    {
-        Vector2 deleteHead = heads[0];
-        heads.RemoveAt(0);
-        if (velocity.magnitude > 0.01f)
-        {
-            heads.Add(velocity.normalized);
-            smoothHeading = (smoothHeading * smoothtimes - deleteHead + velocity.normalized) / smoothtimes;
-        }
-        else
-        {
-            heads.Add(head);
-            smoothHeading = (smoothHeading * smoothtimes - deleteHead + head) / smoothtimes;
-        }
-
-        return smoothHeading;
-    }
+    
 }

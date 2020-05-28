@@ -17,16 +17,16 @@ public class tesk : MonoBehaviour
         //float h = Input.GetAxis("Horizontal");
         //float v = Input.GetAxis("Vertical");
         //transform.Translate(new Vector3(h, v, 0) * speed * Time.deltaTime, Space.World);
-        RaycastHit2D[] raycastHit2Ds = Physics2D.RaycastAll(new Vector2(-2.8f, -2.8f), new Vector2(1, 1), 8);
-        for (int i = 0; i < raycastHit2Ds.Length; i++)
-        {
-            Debug.Log(raycastHit2Ds[i].collider.name);
-        }
+        //RaycastHit2D[] raycastHit2Ds = Physics2D.RaycastAll(new Vector2(-2.8f, -2.8f), new Vector2(1, 1), 8);
+        //for (int i = 0; i < raycastHit2Ds.Length; i++)
+        //{
+        //    Debug.Log(raycastHit2Ds[i].collider.name);
+        //}
     }
-    private void OnDrawGizmos()
-    {
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(new Vector3(-2.8f, -2.8f, -4f), new Vector3(2.8f, 2.8f, -4));
-    }
+    //private void OnDrawGizmos()
+    //{
+    //    Gizmos.color = Color.red;
+    //    Gizmos.DrawLine(new Vector3(-2.8f, -2.8f, -4f), new Vector3(2.8f, 2.8f, -4));
+    //}
 }
 

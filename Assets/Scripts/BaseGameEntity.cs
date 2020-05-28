@@ -41,18 +41,18 @@ public class BaseGameEntity : MonoBehaviour
     /// <summary>
     /// 邻居容器（存储邻居的collider）
     /// </summary>
-    public List<Collider2D> neighborTag = new List<Collider2D>();
+    public List<Collider2D> neighbor = new List<Collider2D>();
 
-    public void TagNeighbors(BaseGameEntity entity, float radius, float angle = Mathf.PI * 2)
+    public void FindNeighbors(BaseGameEntity entity, float radius, float angle = Mathf.PI * 2)
     {
-        neighborTag.Clear(); 
+        neighbor.Clear(); 
         Collider2D[] neighbors = Physics2D.OverlapCircleAll(entity.transform.position, radius);
         for (int i = 0; i < neighbors.Length; i++)
         {
             Vector2 toNeighbors = (Vector2)neighbors[i].transform.position - (Vector2)entity.transform.position;
             if (neighbors[i].gameObject.name != entity.name && neighbors[i].gameObject.tag == "Player" && Vector2.Dot(entity.transform.up, toNeighbors.normalized) > Mathf.Cos(angle / 2.0f))
             {
-                neighborTag.Add(neighbors[i]);
+                neighbor.Add(neighbors[i]);
             }
         }
     }
